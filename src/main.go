@@ -11,6 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Course struct {
@@ -42,7 +43,7 @@ type ProcCourse struct {
 
 func NewFakultas() *Fakultas {
 	return &Fakultas{
-		Buffer: nil,
+		Buffer: make(map[string]string),
 	}
 }
 
@@ -279,9 +280,11 @@ func getAns(c *gin.Context) {
 
 	courseList := NewCourseList()
 
-	dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+	// db, err := sql.Open("mysql", dsn)
+	dsn2 := "db/data.db"
+	db, err := sql.Open("sqlite3", dsn2)
 
-	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -327,9 +330,12 @@ func getAns2(c *gin.Context) {
 	courseList := NewCourseList()
 	fakul := NewFakultas()
 
-	dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
 
-	db, err := sql.Open("mysql", dsn)
+	// db, err := sql.Open("mysql", dsn)
+
+	dsn2 := "db/data.db"
+	db, err := sql.Open("sqlite3", dsn2)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -358,7 +364,7 @@ func getAns2(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"result": strconv.Itoa(input.Maxsks) + strconv.Itoa(input.Minsks) + strconv.Itoa(input.Semester) + input.Jurusan,
+		"result": outStr,
 	})
 }
 
@@ -377,9 +383,11 @@ func addMat(c *gin.Context) {
 		return
 	}
 
-	dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
 
-	db, err := sql.Open("mysql", dsn)
+	// db, err := sql.Open("mysql", dsn)
+	dsn2 := "db/data.db"
+	db, err := sql.Open("sqlite3", dsn2)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -412,16 +420,18 @@ func addFal(c *gin.Context) {
 	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
 
 	// db, err := sql.Open("mysql", dsn)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer db.Close()
+	dsn2 := "db/data.db"
+	db, err := sql.Open("sqlite3", dsn2)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 
-	// _, err2 := db.Exec("INSERT INTO fakultas (Jurusan, Fakultas) VALUES (?, ?)",
-	// 	input.Jurusan, input.Fakultas)
-	// if err != nil {
-	// 	log.Fatal(err2)
-	// }
+	_, err2 := db.Exec("INSERT INTO fakultas (Jurusan, Fakultas) VALUES (?, ?)",
+		input.Jurusan, input.Fakultas)
+	if err != nil {
+		log.Fatal(err2)
+	}
 
 	outStr := "Inserted: " + input.Jurusan + " => " + input.Fakultas
 
@@ -431,9 +441,11 @@ func addFal(c *gin.Context) {
 }
 
 func clearDB(c *gin.Context) {
-	dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
 
-	db, err := sql.Open("mysql", dsn)
+	// db, err := sql.Open("mysql", dsn)
+	dsn2 := "db/data.db"
+	db, err := sql.Open("sqlite3", dsn2)
 	if err != nil {
 		log.Fatal(err)
 	}
