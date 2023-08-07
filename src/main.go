@@ -25,6 +25,10 @@ type Course struct {
 	PredS    float64
 }
 
+type Fakultas struct {
+	Buffer map[string]string
+}
+
 type CourseList struct {
 	CourseBuffer []Course
 }
@@ -34,6 +38,12 @@ type ProcCourse struct {
 	Taken        []int
 	IP           float64
 	SKS          int
+}
+
+func NewFakultas() *Fakultas {
+	return &Fakultas{
+		Buffer: nil,
+	}
 }
 
 func NewCourseList() *CourseList {
@@ -70,6 +80,10 @@ func (l *CourseList) AddCourse(nama string, sks int, jurusan string, fakultas st
 	if newCourse.PredC != -1 {
 		l.CourseBuffer = append(l.CourseBuffer, *newCourse)
 	}
+}
+
+func (l *Fakultas) Add(jurusan string, fakultas string) {
+	l.Buffer[jurusan] = fakultas
 }
 
 func ConvPrediksi(a string) float64 {
@@ -119,6 +133,22 @@ func (l *CourseList) GetBestValueCourses(jurusan string, fakultas string, sem in
 	var filteredCourses []Course
 	for _, course := range l.CourseBuffer {
 		if course.Jurusan == jurusan && course.Fakultas == fakultas && course.Semester <= sem {
+			filteredCourses = append(filteredCourses, course)
+		}
+	}
+
+	// Find all combinations of courses within SKS constraints
+	var bestCourses [][]Course
+	findCombinations(filteredCourses, []Course{}, 0, minSks, maxSks, &bestCourses)
+
+	return bestCourses
+}
+
+func (l *CourseList) GetBestValueCourses2(jurusan string, fakultas string, sem int, minSks int, maxSks int) [][]Course {
+	// Filter courses based on the given criteria
+	var filteredCourses []Course
+	for _, course := range l.CourseBuffer {
+		if course.Fakultas == fakultas && course.Semester <= sem {
 			filteredCourses = append(filteredCourses, course)
 		}
 	}
@@ -202,6 +232,31 @@ func (l *CourseList) readDB(db *sql.DB) {
 	}
 }
 
+func (l *Fakultas) readDB(db *sql.DB) {
+
+	rows, err := db.Query("SELECT * FROM fakultas")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int
+		var jurusan string
+		var fakultas string
+		err := rows.Scan(&id, &jurusan, &fakultas)
+		if err != nil {
+			log.Fatal(err)
+		}
+		l.Add(jurusan, fakultas)
+
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (l *CourseList) printList() {
 	for _, course := range l.CourseBuffer {
 		fmt.Println(course)
@@ -256,6 +311,57 @@ func getAns(c *gin.Context) {
 	})
 }
 
+func getAns2(c *gin.Context) {
+	var input struct {
+		Minsks   int    `json:"minsks"`
+		Maxsks   int    `json:"maxsks"`
+		Jurusan  string `json:"jurusan"`
+		Semester int    `json:"semester"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	courseList := NewCourseList()
+	fakul := NewFakultas()
+
+	dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	courseList.readDB(db)
+	fakul.readDB(db)
+
+	fakulIn := fakul.Buffer[input.Jurusan]
+
+	bestCourses := courseList.GetBestValueCourses2(
+		input.Jurusan, fakulIn, input.Semester, input.Minsks, input.Maxsks,
+	)
+
+	var outStr string
+	for i, courses := range bestCourses {
+		// fmt.Printf("Best Courses %d:\n", i+1)
+		outStr = outStr + "Best Courses " + strconv.Itoa(i+1) + ": \n"
+		for _, course := range courses {
+			outStr = outStr + "Mata Kuliah: " + course.Nama + ", SKS: " + strconv.Itoa(course.SKS) + ", Prediksi: " + course.Prediksi + "\n"
+			// fmt.Printf("Name: %s, SKS: %d, Prediksi: %s\n", course.Nama, course.SKS, course.Prediksi)
+		}
+		outStr = outStr + "IP: " + strconv.FormatFloat(GetCourseListIP(courses), 'f', -1, 64) + ", SKS: " + strconv.Itoa(GetListTotalSKS(courses)) + "\n\n"
+		// fmt.Printf("Jumlah IP: %.3f, Jumlah SKS: %d\n", GetCourseListIP(courses), GetListTotalSKS(courses))
+		// fmt.Println()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"result": strconv.Itoa(input.Maxsks) + strconv.Itoa(input.Minsks) + strconv.Itoa(input.Semester) + input.Jurusan,
+	})
+}
+
 func addMat(c *gin.Context) {
 	var input struct {
 		Nama     string `json:"nama"`
@@ -286,6 +392,38 @@ func addMat(c *gin.Context) {
 	}
 
 	outStr := "Inserted: " + input.Nama
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": outStr,
+	})
+}
+
+func addFal(c *gin.Context) {
+	var input struct {
+		Jurusan  string `json:"jurusan"`
+		Fakultas string `json:"fakultas"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// dsn := "sql6636925:GaydgguNGw@tcp(sql6.freemysqlhosting.net:3306)/sql6636925"
+
+	// db, err := sql.Open("mysql", dsn)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer db.Close()
+
+	// _, err2 := db.Exec("INSERT INTO fakultas (Jurusan, Fakultas) VALUES (?, ?)",
+	// 	input.Jurusan, input.Fakultas)
+	// if err != nil {
+	// 	log.Fatal(err2)
+	// }
+
+	outStr := "Inserted: " + input.Jurusan + " => " + input.Fakultas
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": outStr,
@@ -327,5 +465,7 @@ func main() {
 	r.POST("/getAnswer", getAns)
 	r.POST("/addMat", addMat)
 	r.POST("/clearData", clearDB)
+	r.POST("/getAnswer2", getAns2)
+	r.POST("/addFakul", addFal)
 	r.Run(":8080")
 }
